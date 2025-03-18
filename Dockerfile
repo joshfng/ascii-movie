@@ -1,5 +1,9 @@
+#syntax=docker/dockerfile:1
+
 FROM --platform=$BUILDPLATFORM golang:1.24.0 AS build
 WORKDIR /app
+
+COPY --from=tonistiigi/xx:1.6.1 / /
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -8,17 +12,11 @@ COPY . .
 
 ARG TARGETPLATFORM
 # Set Golang build envs based on Docker platform string
-RUN --mount=type=cache,target=/root/.cache \
-    set -x \
-    && case "$TARGETPLATFORM" in \
-        'linux/amd64') export GOARCH=amd64 ;; \
-        'linux/arm/v6') export GOARCH=arm GOARM=6 ;; \
-        'linux/arm/v7') export GOARCH=arm GOARM=7 ;; \
-        'linux/arm64' | 'linux/arm64/v8') export GOARCH=arm64 ;; \
-        *) echo "Unsupported target: $TARGETPLATFORM" && exit 1 ;; \
-    esac \
-    && go generate \
-    && CGO_ENABLED=0 go build -ldflags='-w -s' -trimpath -tags gzip
+RUN --mount=type=cache,target=/root/.cache <<EOT
+  set -x
+  xx-go generate -x ./...
+  CGO_ENABLED=0 xx-go build -ldflags='-w -s' -trimpath -tags gzip
+EOT
 
 
 FROM alpine:3.21.3
